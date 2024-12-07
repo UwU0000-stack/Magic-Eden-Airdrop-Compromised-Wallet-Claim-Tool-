@@ -2,7 +2,7 @@
 
 A Next.js application for managing Magic Eden airdrop claims with automated scheduling and deadline monitoring.
 
-## ⚠️ Important Security Notice
+## Important Security Notice
 As a general security practice, you should never enter private keys into websites. This tool should only be used as a last resort for compromised wallets to attempt claiming allocations before unauthorized parties do.
 
 ## Features
