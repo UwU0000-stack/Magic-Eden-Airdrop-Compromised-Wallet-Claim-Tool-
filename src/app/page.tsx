@@ -6,6 +6,7 @@ import { Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
 import nacl from 'tweetnacl';
 import Image from 'next/image';
+import { Analytics } from "@vercel/analytics/react"
 
 interface WalletEntry {
   id: string;
@@ -444,6 +445,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0F1114] text-gray-300">
+      <Analytics />
       <main className="max-w-lg mx-auto p-8">
         <div className="mb-8">
           <div className="bg-[#FF5B5B] bg-opacity-10 border border-[#FF5B5B] rounded-lg px-3 py-2 mb-4 text-xs">
