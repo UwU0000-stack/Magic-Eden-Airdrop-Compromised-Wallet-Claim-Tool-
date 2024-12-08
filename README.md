@@ -1,7 +1,7 @@
-# Magic Eden Airdrop Claim Tool - Solana Version 
+# Magic Eden Airdrop Claim Tool - Solana Version ***API IS CURRENTLY DOWN FOR MAGIC EDEN*** SCRIPT SHOULD WORK WHEN IT IS BACK ONLINE- WILL MAKE CHANGES IF REQUIRED WHEN BACK ONLINE
 A Next.js application for managing Magic Eden airdrop claims on Solana with automated scheduling and deadline monitoring.
 
-# Note
+# Note API
 There is no point running this a ton before close to the deadline - After initial testing just run it maybe an hour or two before the claim deadline.I would run it 1 hour before the deadline. In the last 5 mins before claim deadline it sends the requests much faster.You could run it in two tabs to double if you really want to send lots of claims.
 
 ## Important Security Notice
