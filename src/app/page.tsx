@@ -8,6 +8,9 @@ import nacl from 'tweetnacl';
 import Image from 'next/image';
 import { Analytics } from "@vercel/analytics/react"
 
+// Safely check for window object
+const isBrowser = typeof window !== 'undefined';
+
 interface WalletEntry {
   id: string;
   privateKey: string;
@@ -66,14 +69,15 @@ declare global {
 }
 
 export default function Home() {
+  // Initialize state with null checks
   const [entries, setEntries] = useState<WalletEntry[]>(() => 
-    loadFromLocalStorage(STORAGE_KEYS.ENTRIES, [
+    isBrowser ? loadFromLocalStorage(STORAGE_KEYS.ENTRIES, [
       { id: '1', privateKey: '', allocationWallet: '', attempts: 0, successes: 0 }
-    ])
+    ]) : []
   );
   
   const [claimWallet, setClaimWallet] = useState(() => 
-    loadFromLocalStorage(STORAGE_KEYS.CLAIM_WALLET, '')
+    isBrowser ? loadFromLocalStorage(STORAGE_KEYS.CLAIM_WALLET, '') : ''
   );
 
   const [isRunning, setIsRunning] = useState(false);
@@ -86,20 +90,58 @@ export default function Home() {
   // Add state for countdown
   const [countdown, setCountdown] = useState<string>('');
 
-  // Save claim wallet changes
+  // Save to localStorage only in browser
   useEffect(() => {
-    saveToLocalStorage(STORAGE_KEYS.CLAIM_WALLET, claimWallet);
+    if (isBrowser) {
+      try {
+        saveToLocalStorage(STORAGE_KEYS.CLAIM_WALLET, claimWallet);
+      } catch (err) {
+        console.warn('Error saving claim wallet:', err);
+      }
+    }
   }, [claimWallet]);
 
-  // Save entries changes
   useEffect(() => {
-    const entriesForStorage = entries.map(({ id, privateKey, allocationWallet }) => ({
-      id,
-      privateKey,
-      allocationWallet
-    }));
-    saveToLocalStorage(STORAGE_KEYS.ENTRIES, entriesForStorage);
+    if (isBrowser) {
+      try {
+        const entriesForStorage = entries.map(({ id, privateKey, allocationWallet }) => ({
+          id,
+          privateKey,
+          allocationWallet
+        }));
+        saveToLocalStorage(STORAGE_KEYS.ENTRIES, entriesForStorage);
+      } catch (err) {
+        console.warn('Error saving entries:', err);
+      }
+    }
   }, [entries]);
+
+  // Error boundary for React rendering
+  const [hasError, setHasError] = useState(false);
+  useEffect(() => {
+    const handleError = (error: ErrorEvent) => {
+      console.warn('Caught error:', error);
+      setHasError(true);
+    };
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
+  if (hasError) {
+    return (
+      <div className="min-h-screen bg-[#0F1114] text-gray-300 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl mb-4">Something went wrong</h2>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-[#E42575] rounded-xl text-white"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const getDeadlineDate = () => {
     // Create deadline date in PT
@@ -445,7 +487,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0F1114] text-gray-300">
-      <Analytics />
+      {isBrowser && <Analytics />}
       <main className="max-w-lg mx-auto p-8">
         <div className="mb-8">
           <div className="bg-[#FF5B5B] bg-opacity-10 border border-[#FF5B5B] rounded-lg px-3 py-2 mb-4 text-xs">
