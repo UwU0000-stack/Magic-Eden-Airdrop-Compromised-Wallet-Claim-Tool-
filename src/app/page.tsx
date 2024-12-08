@@ -328,7 +328,7 @@ export default function Home() {
 
       // Create an AbortController for the timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       try {
         const response = await fetch("/api/proxy", {
@@ -629,14 +629,8 @@ export default function Home() {
                       <div className="flex justify-between text-gray-500">
                         <span>Attempts: {entry.successes}/{entry.attempts}</span>
                       </div>
-                      {entry.lastResult && (
-                        <div 
-                          className={`text-xs ${
-                            entry.lastResult.status === 'success' 
-                              ? 'text-[#45B26B]' 
-                              : 'text-[#FF5B5B]'
-                          }`}
-                        >
+                      {entry.lastResult && entry.lastResult.status === 'success' && (
+                        <div className="text-xs text-[#45B26B]">
                           {entry.lastResult.message}
                         </div>
                       )}
