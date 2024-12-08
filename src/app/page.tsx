@@ -169,8 +169,8 @@ export default function Home() {
     const next = new Date(now);
     
     if (isInCriticalPeriod()) {
-      // During critical period: run every 5 seconds
-      next.setSeconds(next.getSeconds() + 5);
+      // During critical period: run every 2 seconds
+      next.setSeconds(next.getSeconds() + 2);
     } else {
       // Normal operation: run every 10 seconds
       next.setSeconds(next.getSeconds() + 10);
