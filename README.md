@@ -1,5 +1,11 @@
-# Magic Eden Airdrop Claim Tool - Solana Version ***API IS updated with protections now - update coming shortly***
-A Next.js application for managing Magic Eden airdrop claims on Solana with automated scheduling and deadline monitoring.
+# Magic Eden Airdrop Claim Tool - Solana Version ***UPDATED FOR NEW API***
+Create a `.env.local` file with your cookies from mefoundation.com:
+   - Go to mefoundation.com and login
+   - Open DevTools (F12) → Application tab → Cookies
+   - Copy the values for `cf_clearance` and `session_signature`
+   - Add them to a file `.env.local`:
+   CF_COOKIE=your_cf_clearance_value
+   SESSION_COOKIE=your_session_signature_value
 
 # Note API
 There is no point running this a ton before close to the deadline - After initial testing just run it maybe an hour or two before the claim deadline.I would run it 1 hour before the deadline. In the last 5 mins before claim deadline it sends the requests much faster.You could run it in two tabs to double if you really want to send lots of claims.
