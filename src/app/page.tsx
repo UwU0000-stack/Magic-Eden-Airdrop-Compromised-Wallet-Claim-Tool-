@@ -206,7 +206,7 @@ export default function Home() {
       const diffMinutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
       const diffSeconds = Math.floor((diffTime % (1000 * 60)) / 1000);
 
-      return `Time until critical period: ${diffDays}d ${diffHours}h ${diffMinutes}m ${diffSeconds}s`;
+      return `Deadline: ${diffDays}d ${diffHours}h ${diffMinutes}m ${diffSeconds}s`;
     } catch (err) {
       console.error('Error calculating deadline:', err);
       return 'Error calculating deadline';
