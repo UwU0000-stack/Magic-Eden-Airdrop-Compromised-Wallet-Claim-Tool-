@@ -1,5 +1,5 @@
 # Magic Eden Airdrop Claim Tool
-A Next.js application for managing Magic Eden airdrop claims with automated scheduling and deadline monitoring.
+A Next.js application for managing Magic Eden airdrop claims on Solana with automated scheduling and deadline monitoring.
 
 # Note
 There is no point running this a ton before close to the deadline - After initial testing just run it maybe an hour or two before the claim deadline.
