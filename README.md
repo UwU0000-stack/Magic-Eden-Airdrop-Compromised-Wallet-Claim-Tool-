@@ -7,6 +7,8 @@ Create a `.env.local` file with your cookies from mefoundation.com:
    CF_COOKIE=your_cf_clearance_value
    SESSION_COOKIE=your_session_signature_value
 
+This will authorize you to get past the cloudfare
+
 # Note API
 There is no point running this a ton before close to the deadline - After initial testing just run it maybe an hour or two before the claim deadline.I would run it 1 hour before the deadline. In the last 5 mins before claim deadline it sends the requests much faster.You could run it in two tabs to double if you really want to send lots of claims.
 
