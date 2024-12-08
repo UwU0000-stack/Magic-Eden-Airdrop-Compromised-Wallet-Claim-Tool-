@@ -127,12 +127,11 @@ export default function Home() {
     const next = new Date(now);
     
     if (isInCriticalPeriod()) {
-      // During critical period: run every 10 seconds
-      next.setSeconds(next.getSeconds() + 10);
+      // During critical period: run every 5 seconds
+      next.setSeconds(next.getSeconds() + 5);
     } else {
-      // Normal operation: run every hour
-      next.setHours(next.getHours() + 1);
-      next.setMinutes(0);
+      // Normal operation: run every minute
+      next.setMinutes(next.getMinutes() + 1);
       next.setSeconds(0);
     }
     
@@ -148,10 +147,9 @@ export default function Home() {
       const seconds = Math.floor(diff / 1000);
       return `${seconds}s`;
     } else {
-      // Show minutes and seconds during normal operation
-      const minutes = Math.floor(diff / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-      return `${minutes}m ${seconds}s`;
+      // Show seconds during normal operation too
+      const seconds = Math.floor(diff / 1000);
+      return `${seconds}s`;
     }
   };
 
