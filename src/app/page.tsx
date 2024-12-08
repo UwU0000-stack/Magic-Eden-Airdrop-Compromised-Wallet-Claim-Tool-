@@ -326,46 +326,61 @@ export default function Home() {
 
       const signatureBase58 = bs58.encode(signature);
 
-      const response = await fetch("/api/proxy", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          "0": {
-            "json": {
-              "message": message,
-              "wallet": entry.allocationWallet,
-              "chain": "sol",
-              "signature": signatureBase58,
-              "allocationEvent": "tge-airdrop-final",
-              "isLedger": false
-            }
-          }
-        }),
-      });
+      // Create an AbortController for the timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Request failed');
-      }
-
-      setEntries(current =>
-        current.map(e =>
-          e.id === entry.id
-            ? {
-                ...e,
-                successes: e.successes + 1,
-                lastResult: {
-                  status: 'success',
-                  message: 'Claim attempt successful',
-                  timestamp: Date.now()
-                }
+      try {
+        const response = await fetch("/api/proxy", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            "0": {
+              "json": {
+                "message": message,
+                "wallet": entry.allocationWallet,
+                "chain": "sol",
+                "signature": signatureBase58,
+                "allocationEvent": "tge-airdrop-final",
+                "isLedger": false
               }
-            : e
-        )
-      );
+            }
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Request failed');
+        }
+
+        setEntries(current =>
+          current.map(e =>
+            e.id === entry.id
+              ? {
+                  ...e,
+                  successes: e.successes + 1,
+                  lastResult: {
+                    status: 'success',
+                    message: 'Claim attempt successful',
+                    timestamp: Date.now()
+                  }
+                }
+              : e
+          )
+        );
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          throw new Error('Request timed out after 5 seconds');
+        }
+        throw err;
+      } finally {
+        clearTimeout(timeoutId);
+      }
     } catch (err: any) {
       setEntries(current =>
         current.map(e =>
