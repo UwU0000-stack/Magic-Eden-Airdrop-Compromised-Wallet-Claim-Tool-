@@ -1,4 +1,4 @@
-# Magic Eden Airdrop Claim Tool
+# Magic Eden Airdrop Claim Tool - Solana Version 
 A Next.js application for managing Magic Eden airdrop claims on Solana with automated scheduling and deadline monitoring.
 
 # Note
