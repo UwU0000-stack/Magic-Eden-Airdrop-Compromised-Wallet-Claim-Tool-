@@ -49,7 +49,7 @@ const loadFromLocalStorage = (key: string, defaultValue: any) => {
 };
 
 const AIRDROP_DEADLINE = {
-  date: '2024-12-07',
+  date: '2024-12-08',
   hour: 15, 
   minute: 0,
   timezone: 'America/Los_Angeles'
