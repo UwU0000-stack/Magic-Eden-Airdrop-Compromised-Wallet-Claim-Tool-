@@ -127,13 +127,11 @@ export default function Home() {
     const next = new Date(now);
     
     if (isInCriticalPeriod()) {
-      // During critical period: run every 10 seconds
-      next.setSeconds(next.getSeconds() + 10);
+      // During critical period: run every 5 seconds
+      next.setSeconds(next.getSeconds() + 5);
     } else {
-      // Normal operation: run every hour
-      next.setHours(next.getHours() + 1);
-      next.setMinutes(0);
-      next.setSeconds(0);
+      // Normal operation: run every 10 seconds
+      next.setSeconds(next.getSeconds() + 10);
     }
     
     return next;
@@ -141,18 +139,9 @@ export default function Home() {
 
   const formatTimeUntilNext = (nextTime: Date) => {
     const now = new Date();
-    const diff = nextTime.getTime() - now.getTime();
-    
-    if (isInCriticalPeriod()) {
-      // Show seconds during critical period
-      const seconds = Math.floor(diff / 1000);
-      return `${seconds}s`;
-    } else {
-      // Show minutes and seconds during normal operation
-      const minutes = Math.floor(diff / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-      return `${minutes}m ${seconds}s`;
-    }
+    const diff = Math.max(0, nextTime.getTime() - now.getTime());
+    const seconds = Math.ceil(diff / 1000);
+    return `${seconds}s`;
   };
 
   // Add deadline info display
@@ -226,8 +215,19 @@ export default function Home() {
     
     if (isRunning && nextRunTime) {
       countdownInterval = setInterval(() => {
+        const now = new Date();
         const nextTime = new Date(nextRunTime);
-        if (nextTime > new Date()) {
+        const diff = nextTime.getTime() - now.getTime();
+        
+        if (diff <= 0) {
+          // Time to make the next request
+          entries.forEach(async (entry) => {
+            await makeRequest(entry);
+            const interval = scheduleNextRun(entry);
+            intervalRefs.current[entry.id] = interval;
+          });
+        } else {
+          // Update the display time
           setNextRunTime(nextTime.toISOString());
         }
       }, 1000);
@@ -238,7 +238,7 @@ export default function Home() {
         clearInterval(countdownInterval);
       }
     };
-  }, [isRunning, nextRunTime]);
+  }, [isRunning, nextRunTime, entries]);
 
   const makeRequest = async (entry: WalletEntry) => {
     // Clear previous result
