@@ -55,7 +55,7 @@ const AIRDROP_DEADLINE = {
   timezone: 'America/Los_Angeles'
 };
 
-const CRITICAL_WINDOW_MINUTES = 5; // 5 minutes before deadline
+const CRITICAL_WINDOW_MINUTES = 6; // 5 minutes before deadline
 
 declare global {
   interface Window {
