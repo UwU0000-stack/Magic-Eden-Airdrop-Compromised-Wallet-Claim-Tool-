@@ -2,7 +2,7 @@
 A Next.js application for managing Magic Eden airdrop claims on Solana with automated scheduling and deadline monitoring.
 
 # Note
-There is no point running this a ton before close to the deadline - After initial testing just run it maybe an hour or two before the claim deadline. In the last 5 mins before claim deadline it sends the requests much faster.You could run it in two tabs to double if you really want to send lots of claims.
+There is no point running this a ton before close to the deadline - After initial testing just run it maybe an hour or two before the claim deadline.I would run it 1 hour before the deadline. In the last 5 mins before claim deadline it sends the requests much faster.You could run it in two tabs to double if you really want to send lots of claims.
 
 ## Important Security Notice
 As a general security practice, you should never enter private keys into websites. This tool should only be used as a last resort for compromised wallets to attempt claiming allocations before unauthorized parties do.
